@@ -1,5 +1,5 @@
 // src/services/authService.js
-import apiClient from '../api/axios'; // Ini akan dibuat nanti di 14.4.3 Langkah 3
+import apiClient from '../api/axios';
 
 export const authService = {
   async login(email, password) {
@@ -12,7 +12,7 @@ export const authService = {
   },
   async logout() {
     try {
-      const response = await apiClient.post('/logout');
+      const response = await apiClient.post('/logout'); // Panggil endpoint logout di backend
       return response.data;
     } catch (error) {
       throw new Error('Gagal logout: ' + error.response?.data?.message || 'Terjadi kesalahan');
