@@ -17,7 +17,6 @@ export default function LoginPage() {
   }, [user, navigate]);
 
   useEffect(() => {
-    // Bersihkan error saat komponen di-mount atau saat user mulai mengetik
     clearError();
   }, [email, password, clearError]);
 
@@ -25,9 +24,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       await loginAction(email, password);
-      // Redirection handled by useEffect
     } catch (err) {
-      // Error message is already set in AuthContext
       console.error("Login failed:", err);
     }
   };
