@@ -1,7 +1,7 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState } from "react"; // Hapus useEffect jika tidak digunakan
 import { authService } from "../services/authService";
-import axios from 'axios'; // Pastikan ini diimpor jika digunakan untuk csrf-cookie
+// import axios from 'axios'; // Hapus import axios jika tidak digunakan untuk csrf-cookie di sini
 
 const AuthContext = createContext(null);
 
@@ -13,20 +13,18 @@ const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Bagian untuk mendapatkan CSRF cookie (pastikan sudah disesuaikan dengan solusi yang bekerja untuk Anda)
-  useEffect(() => {
-    async function getCsrfCookie() {
-      try {
-        // Contoh: menggunakan axios langsung jika sanctum/csrf-cookie tidak di /api
-        // await axios.get('http://localhost:8000/sanctum/csrf-cookie', { withCredentials: true });
-        // Jika Anda mengikuti modul, ini mungkin dipanggil otomatis oleh Sanctum atau axios.js
-        console.log('CSRF cookie mechanism might be implicit or called elsewhere.');
-      } catch (err) {
-        console.error('Failed to get CSRF cookie in AuthContext useEffect:', err);
-      }
-    }
-    getCsrfCookie();
-  }, []);
+  // Hapus atau komentari bagian useEffect yang memanggil csrf-cookie dari sini
+  // useEffect(() => {
+  //   async function getCsrfCookie() {
+  //     try {
+  //       await axios.get('http://localhost:8000/sanctum/csrf-cookie', { withCredentials: true });
+  //       console.log('CSRF cookie obtained.');
+  //     } catch (err) {
+  //       console.error('Failed to get CSRF cookie:', err);
+  //     }
+  //   }
+  //   getCsrfCookie();
+  // }, []);
 
   const loginAction = async (email, password) => {
     setLoading(true);
@@ -34,9 +32,9 @@ const AuthProvider = ({ children }) => {
     try {
       const response = await authService.login(email, password);
       setUser(response.user);
-      setToken(response.token); // Sesuaikan dengan nama key token dari backend Anda
+      setToken(response.token); // SESUAIKAN DENGAN NAMA KEY TOKEN DARI BACKEND ANDA
       localStorage.setItem("user", JSON.stringify(response.user));
-      localStorage.setItem("token", response.token); // Sesuaikan dengan nama key token dari backend Anda
+      localStorage.setItem("token", response.token); // SESUAIKAN DENGAN NAMA KEY TOKEN DARI BACKEND ANDA
       return response;
     } catch (error) {
       console.error("Login error:", error);
@@ -51,11 +49,11 @@ const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      await authService.logout(); // Panggil fungsi logout dari service layer
-      setUser(null); // Bersihkan user state
-      setToken(null); // Bersihkan token state
-      localStorage.removeItem("user"); // Hapus dari localStorage
-      localStorage.removeItem("token"); // Hapus dari localStorage
+      await authService.logout();
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
       return true;
     } catch (error) {
       console.error('Logout error:', error.message);
