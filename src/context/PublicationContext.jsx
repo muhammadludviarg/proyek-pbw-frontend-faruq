@@ -1,5 +1,4 @@
-// src/context/PublicationContext.jsx
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect } from "react";
 import { publicationService } from "../services/publicationService";
 import { useAuth } from "../hooks/useAuth";
 
@@ -9,30 +8,30 @@ const PublicationProvider = ({ children }) => {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const {token} = useAuth();
+  const { token } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
+      // Hanya fetch data jika ada token (sudah login)
       if (!token) {
-        setLoading(false);
-        setPublications([]); // Pastikan ini tetap array kosong
+        setLoading(false); // Pastikan loading false jika tidak ada token
+        setPublications([]); // Kosongkan daftar jika tidak login
         return;
       }
       setLoading(true);
       try {
         const data = await publicationService.getPublications();
-        // Pastikan data yang diterima dari API adalah array. Jika tidak, konversikan.
-        setPublications(Array.isArray(data) ? data : []);
+        setPublications(data);
         setError(null);
       } catch (err) {
         setError(err.message);
-        setPublications([]); // Jika error, set ke array kosong untuk mencegah crash
+        console.error("Fetch publications error:", err); // Log error
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [token]);
+  }, [token]); // Re-fetch saat token berubah (login/logout)
 
   const addPublication = async (newPub) => {
     try {
@@ -46,24 +45,19 @@ const PublicationProvider = ({ children }) => {
     }
   };
 
-  const editPublication = async (updatedPub) => {
-    try {
-      const response = await publicationService.updatePublication(updatedPub.id, updatedPub);
-      setPublications(prev => prev.map(pub => pub.id === updatedPub.id ? response : pub));
-      setError(null);
-      return response;
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    }
+  
+  const editPublication = (updatedPubFromBackend) => { 
+    setPublications((prev) =>
+      prev.map((pub) => (pub.id === updatedPubFromBackend.id ? updatedPubFromBackend : pub))
+    );
+    setError(null);
   };
 
   const deletePublication = async (id) => {
     try {
       await publicationService.deletePublication(id);
-      setPublications(prev => prev.filter(pub => pub.id !== id));
+      setPublications((prev) => prev.filter((pub) => pub.id !== id));
       setError(null);
-      return true;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -77,7 +71,7 @@ const PublicationProvider = ({ children }) => {
         loading,
         error,
         addPublication,
-        editPublication,
+        editPublication, 
         deletePublication,
       }}
     >
