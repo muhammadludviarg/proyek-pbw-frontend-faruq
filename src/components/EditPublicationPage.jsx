@@ -1,150 +1,234 @@
 // src/components/EditPublicationPage.jsx
-import React, { useState, useEffect } from 'react';
-import { usePublications } from '../hooks/usePublications'; // Impor usePublications
-import { useNavigate, useParams } from 'react-router-dom'; // Impor useNavigate dan useParams
+
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { usePublications } from "../hooks/usePublications";
+import {
+  publicationService,
+  uploadImageToCloudinary,
+} from "../services/publicationService";
 
 export default function EditPublicationPage() {
-  const { publications, editPublication } = usePublications(); // Dapatkan data dan fungsi dari hook
+  const { id } = useParams();
   const navigate = useNavigate();
-  const { id } = useParams(); // Dapatkan ID publikasi dari URL
+  const { publications, editPublication } = usePublications();
+  const initialPublication = publications.find((pub) => pub.id === Number(id));
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [releaseDate, setReleaseDate] = useState('');
-  const [coverFile, setCoverFile] = useState(null);
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const [formData, setFormData] = useState({
+    title: "",
+    releaseDate: "",
+    description: "",
+    coverFile: null,
+    coverUrlToSave: null,
+    currentCoverUrl: "",
+  });
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Mengisi form dengan data publikasi yang ada saat komponen dimuat
   useEffect(() => {
-    const publicationToEdit = publications.find(pub => pub.id === parseInt(id));
-    if (publicationToEdit) {
-      setTitle(publicationToEdit.title);
-      setDescription(publicationToEdit.description || '');
-      setReleaseDate(publicationToEdit.releaseDate);
-      setCoverPreviewUrl(publicationToEdit.coverUrl);
+    if (initialPublication) {
+      setFormData({
+        title: initialPublication.title || "",
+        releaseDate: initialPublication.releaseDate || "",
+        description: initialPublication.description || "",
+        coverFile: null,
+        coverUrlToSave: initialPublication.coverUrl || null,
+        currentCoverUrl: initialPublication.coverUrl || "",
+      });
     } else {
-      // Jika publikasi tidak ditemukan, redirect atau tampilkan pesan error
-      navigate('/publications');
+      const fetchPub = async () => {
+        try {
+          const fetchedPub = await publicationService.getPublicationById(id);
+          setFormData({
+            title: fetchedPub.title || "",
+            releaseDate: fetchedPub.releaseDate || "",
+            description: fetchedPub.description || "",
+            coverFile: null,
+            coverUrlToSave: fetchedPub.coverUrl || null,
+            currentCoverUrl: fetchedPub.coverUrl || "",
+          });
+        } catch (err) {
+          console.error("Gagal mengambil publikasi:", err);
+          alert("Gagal memuat detail publikasi. Silakan coba lagi.");
+          navigate("/publications");
+        }
+      };
+      if (id) {
+        fetchPub();
+      }
     }
-  }, [id, publications, navigate]);
+  }, [initialPublication, id, navigate, publications]); // Tambahkan publications ke dependency array
 
-  const handleSubmit = (e) => {
+  const handleChange = async (e) => {
+    const { name, value, files } = e.target;
+
+    if (name === "coverFile" && files && files[0]) {
+      const file = files[0];
+      setFormData((prev) => ({ ...prev, coverFile: file }));
+      setFormData((prev) => ({
+        ...prev,
+        currentCoverUrl: URL.createObjectURL(file),
+      }));
+
+      setIsUploading(true);
+      try {
+        const uploadedUrl = await uploadImageToCloudinary(file);
+        setFormData((prev) => ({ ...prev, coverUrlToSave: uploadedUrl }));
+        console.log("Gambar berhasil diunggah ke Cloudinary:", uploadedUrl);
+      } catch (uploadError) {
+        console.error("Gagal mengunggah gambar ke Cloudinary:", uploadError);
+        alert("Gagal mengunggah gambar. Silakan coba lagi.");
+        setFormData((prev) => ({
+          ...prev,
+          coverFile: null,
+          coverUrlToSave: null,
+          currentCoverUrl: initialPublication ? initialPublication.coverUrl : "", // Kembali ke cover awal jika upload gagal
+        }));
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !releaseDate) {
-      alert('Judul dan Tanggal Rilis harus diisi!');
+    if (isUploading) {
+      alert("Mohon tunggu, gambar sedang diunggah.");
+      return;
+    }
+    if (!formData.title || !formData.releaseDate || !formData.description) {
+      alert("Judul, Tanggal Rilis, dan Deskripsi harus diisi!");
       return;
     }
 
-    let finalCoverUrl = coverPreviewUrl; // Default ke cover yang sudah ada
-    if (coverFile) {
-      finalCoverUrl = URL.createObjectURL(coverFile); // Jika ada file baru dipilih
-    }
-
-    const updatedPublication = {
-      id: parseInt(id), // Pastikan ID adalah integer
-      title,
-      description,
-      releaseDate,
-      coverUrl: finalCoverUrl,
+    const dataToSend = {
+      title: formData.title,
+      releaseDate: formData.releaseDate,
+      description: formData.description,
+      coverUrl: formData.coverUrlToSave,
     };
 
-    editPublication(updatedPublication);
-    navigate('/publications');
-  };
-
-  const handleCancel = () => {
-    navigate('/publications'); // Kembali ke halaman daftar publikasi
-  };
-
-  const handleCoverChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setCoverFile(file);
-      setCoverPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setCoverFile(null);
-      // Jika tidak ada file baru, kembali ke cover asli atau placeholder
-      const publicationToEdit = publications.find(pub => pub.id === parseInt(id));
-      setCoverPreviewUrl(publicationToEdit ? publicationToEdit.coverUrl : '');
+    try {
+      const updatedFromBackend = await publicationService.updatePublication(
+        id,
+        dataToSend
+      );
+      editPublication(updatedFromBackend);
+      navigate("/publications");
+    } catch (error) {
+      console.error("Error updating publication:", error);
+      alert(error.message || "Gagal memperbarui publikasi.");
     }
   };
 
-  // Pastikan publikasi ditemukan sebelum merender form
-  const publicationExists = publications.some(pub => pub.id === parseInt(id));
+  if (!initialPublication && !formData.title && !formData.description) {
+    return <div className="text-center mt-10">Memuat publikasi...</div>;
+  }
 
   return (
-    <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Edit Publikasi</h1>
-      {publicationExists ? (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Judul</label>
-            <input
-              type="text"
-              id="title"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500"
-              placeholder="Contoh: Indikator Ekonomi Bengkulu 2025"
-              required
+    <div className="max-w-2xl mx-auto p-8 rounded-xl shadow-lg bg-gradient-to-br from-blue-50 to-indigo-100 border border-blue-200 transform transition-transform duration-300 hover:scale-[1.01]"> {/* Perubahan: gradien, border, hover effect */}
+      <h1 className="text-3xl font-extrabold text-indigo-800 mb-8 text-center"> {/* Perubahan: ukuran, warna, tengah */}
+        Edit Publikasi
+      </h1>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label
+            htmlFor="title"
+            className="block text-sm font-semibold text-gray-700 mb-1"
+          >
+            Judul
+          </label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            value={formData.title}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-indigo-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors" /* Perubahan: border, focus ring */
+            placeholder="Contoh: Indikator Ekonomi Kalimantan Selatan 2025" 
+            required
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="description"
+            className="block text-sm font-semibold text-gray-700 mb-1"
+          >
+            Deskripsi
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            rows="4"
+            className="w-full px-4 py-2 border border-indigo-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors" /* Perubahan: border, focus ring */
+            placeholder="Masukkan deskripsi publikasi..."
+            required
+          ></textarea>
+        </div>
+        <div>
+          <label
+            htmlFor="releaseDate"
+            className="block text-sm font-semibold text-gray-700 mb-1"
+          >
+            Tanggal Rilis
+          </label>
+          <input
+            type="date"
+            id="releaseDate"
+            name="releaseDate"
+            value={formData.releaseDate}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-indigo-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors" /* Perubahan: border, focus ring */
+            required
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="coverFile"
+            className="block text-sm font-semibold text-gray-700 mb-1"
+          >
+            Sampul (Gambar)
+          </label>
+          <input
+            type="file"
+            id="coverFile"
+            name="coverFile"
+            accept="image/*"
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors" /* Perubahan: styling input file */
+            disabled={isUploading}
+          />
+          {isUploading && (
+            <p className="text-sm text-indigo-600 mt-1">Mengunggah gambar mohon tunggu sebentar...</p> /* Warna teks */
+          )}
+          {formData.currentCoverUrl && (
+            <img
+              src={formData.currentCoverUrl}
+              alt="Sampul"
+              className="h-28 w-auto mt-4 rounded-lg shadow-md object-cover border border-gray-200" /* Perubahan: ukuran, border, shadow */
             />
-          </div>
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500"
-              placeholder="Contoh: Publikasi ini membahas Indikator Ekonomi Bengkulu secara mendalam."
-              rows={4}
-            />
-          </div>
-          <div>
-            <label htmlFor="releaseDate" className="block text-sm font-medium text-gray-700 mb-1">Tanggal Rilis</label>
-            <input
-              type="date"
-              id="releaseDate"
-              value={releaseDate}
-              onChange={e => setReleaseDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="cover" className="block text-sm font-medium text-gray-700 mb-1">Sampul (Gambar)</label>
-            <input
-              type="file"
-              id="cover"
-              accept="image/*"
-              onChange={handleCoverChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-            />
-            {coverPreviewUrl && (
-              <div className="mt-4 flex justify-center">
-                <img src={coverPreviewUrl} alt="Cover Preview" className="max-h-48 rounded-md shadow-md" />
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded-lg transition-colors duration-300"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              className="bg-sky-700 hover:bg-sky-800 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300"
-            >
-              Simpan
-            </button>
-          </div>
-        </form>
-      ) : (
-        <p className="text-center text-gray-600">Publikasi tidak ditemukan.</p>
-      )}
+          )}
+        </div>
+        <div className="flex justify-end space-x-3"> {/* Perubahan: space-x */}
+          <button
+            type="button"
+            onClick={() => navigate("/publications")}
+            className="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300 transform hover:scale-105" /* Perubahan: warna, hover effect */
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300 transform hover:scale-105" /* Perubahan: warna, hover effect */
+            disabled={isUploading}
+          >
+            Simpan
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
