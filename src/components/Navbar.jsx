@@ -3,7 +3,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import logoBPS from "../assets/logoBPS1.png"; // Menggunakan logoBPS dari assets
+import logoBPS from "../assets/LogoBPS1.png"; 
 
 const navItems = [
   { id: "publications", label: "Daftar Publikasi", path: "/publications" },
